@@ -3,9 +3,9 @@ const { HttpError, controllerWrapper } = require("../helpers");
 const Contact = require("../models/Contact");
 
 const addSchema = Joi.object({
-  name: Joi.string(),
-  email: Joi.string(),
-  phone: Joi.string(),
+  name: Joi.string().required(),
+  email: Joi.string().required(),
+  phone: Joi.string().required(),
   favorite: Joi.boolean(),
 });
 
@@ -53,14 +53,18 @@ const changeContact = async (req, res, next) => {
 };
 
 const updateStatusContact = async (req, res, next) => {
-  const { error } = addSchema.validate(req.body);
-  if (error) {
+  const { contactId } = req.params;
+  const { favorite } = req.body;
+  if (favorite === undefined) {
     throw HttpError(400, "missing field favorite");
   }
-  const { contactId } = req.params;
-  const contact = await Contact.findByIdAndUpdate(contactId, req.body, {
-    new: true,
-  });
+  const contact = await Contact.findByIdAndUpdate(
+    contactId,
+    { favorite },
+    {
+      new: true,
+    }
+  );
   if (!contact) {
     throw HttpError(404, "Not found");
   }
