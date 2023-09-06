@@ -1,16 +1,16 @@
-const Joi = require("joi");
-const { HttpError, controllerWrapper } = require("../helpers");
+const { controllerWrapper } = require("../decorators");
+const { HttpError } = require("../helpers");
 const Contact = require("../models/Contact");
-
-const addSchema = Joi.object({
-  name: Joi.string().required(),
-  email: Joi.string().required(),
-  phone: Joi.string().required(),
-  favorite: Joi.boolean(),
-});
+const addSchema = require("../schemas/contacts");
 
 const getAllContacts = async (req, res, next) => {
-  const data = await Contact.find();
+  const { id: owner } = req.user;
+  const { page = 1, limit = 20 } = req.query;
+  const skip = (page - 1) * limit;
+  const data = await Contact.find({ owner })
+    .skip(skip)
+    .limit(limit)
+    .populate("owner", "email");
   res.json(data);
 };
 
@@ -33,7 +33,8 @@ const addContactToList = async (req, res, next) => {
   if (error) {
     throw HttpError(400, error.message);
   }
-  const data = await Contact.create(req.body);
+  const { id: owner } = req.user;
+  const data = await Contact.create({ ...req.body, owner });
   res.status(201).json(data);
 };
 
