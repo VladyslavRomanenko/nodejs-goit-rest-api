@@ -1,23 +1,36 @@
+const fs = require("fs/promises");
+const path = require("path");
+const gravatar = require("gravatar");
+const Jimp = require("jimp");
+
+require("dotenv").config();
+
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-require("dotenv").config();
 
 const { controllerWrapper } = require("../decorators");
 const { HttpError } = require("../helpers");
+
 const User = require("../models/User");
 
 const { JWT_SECRET } = process.env;
 
+const avatarPath = path.resolve("public", "avatars");
+
 const signUp = async (req, res) => {
   const { email, password } = req.body;
+  const avatar = gravatar.url(email, { s: "250", r: "pg", d: "mp" });
   const user = await User.findOne({ email });
   if (user) {
     throw HttpError(409, "Email in use");
   }
-
   const hashPassword = await bcrypt.hash(password, 10);
 
-  const newUser = await User.create({ ...req.body, password: hashPassword });
+  const newUser = await User.create({
+    ...req.body,
+    avatarUrl: avatar,
+    password: hashPassword,
+  });
   res.status(201).json({
     email: newUser.email,
     subscription: newUser.subscription,
@@ -64,9 +77,37 @@ const logOut = async (req, res) => {
   res.json({ message: "You have been logged out" });
 };
 
+const updateAvatar = async (req, res) => {
+  const { _id } = req.user;
+
+  const { path: oldPath, filename } = req.file;
+  const newPath = path.join(avatarPath, filename);
+  await fs.rename(oldPath, newPath);
+
+  await Jimp.read(newPath)
+    .then((img) => img.resize(250, 250).writeAsync(newPath))
+    .catch((err) => {
+      throw HttpError(404, err.message);
+    });
+
+  const avatarUrl = `/avatars/${filename}`;
+
+  const newUser = await User.findByIdAndUpdate(
+    _id,
+    { avatarUrl },
+    { new: true }
+  );
+
+  if (!newUser) {
+    throw HttpError(404, "User not found");
+  }
+  res.status(200).json(avatarUrl);
+};
+
 module.exports = {
   signUp: controllerWrapper(signUp),
   signIn: controllerWrapper(signIn),
   getCurrent: controllerWrapper(getCurrent),
   logOut: controllerWrapper(logOut),
+  updateAvatar: controllerWrapper(updateAvatar),
 };
